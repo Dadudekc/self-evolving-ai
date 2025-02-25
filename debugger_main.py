@@ -205,10 +205,11 @@ class SelfImprovingDebugger:
             logging.error(f"Failed to write improved code: {e}")
 
     def query_ollama(self, model, prompt):
+        # Updated to use UTF-8 encoding and replace errors to avoid UnicodeDecodeError.
         try:
             response = subprocess.run(
                 ["ollama", "run", model, prompt],
-                capture_output=True, text=True, check=True
+                capture_output=True, text=True, encoding="utf-8", errors="replace", check=True
             )
             return response.stdout.strip()
         except subprocess.CalledProcessError as e:

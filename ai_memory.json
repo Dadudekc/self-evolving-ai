@@ -17,6 +17,7 @@
         "Integrate AI-powered customer support",
         "Integrate AI-powered customer support",
         "Integrate AI-powered customer support",
+        "Integrate AI-powered customer support",
         "Integrate AI-powered customer support"
     ],
     "past_performance": [
@@ -37,11 +38,12 @@
         0.003922224044799805,
         0.0039980411529541016,
         0.004631519317626953,
-        0.0047495365142822266
+        0.0047495365142822266,
+        0.004003047943115234
     ],
-    "revenue": 391.0542178849683,
-    "engagement": 96.67055508572105,
-    "efficiency": 34.2727021241954,
+    "revenue": 103.5564171173457,
+    "engagement": 24.004125854608233,
+    "efficiency": 14.332226878568822,
     "training_data": [
         {
             "features": [
@@ -150,6 +152,15 @@
                 9
             ],
             "target": 521.9974750948847
+        },
+        {
+            "features": [
+                103.5564171173457,
+                24.004125854608233,
+                14.332226878568822,
+                9
+            ],
+            "target": 141.89276985052277
         }
     ]
 }

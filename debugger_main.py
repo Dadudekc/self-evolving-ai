@@ -10,17 +10,20 @@ import subprocess
 import importlib
 
 # ------------------------------
-# Global Constants & Setup
+# Global Paths & Setup
 # ------------------------------
-CONTEXT_MEMORY_FILE = "context_memory.json"  # For project plans & contextual memory
-DEBUG_MEMORY_FILE = "ai_memory.json"         # For debugger performance memory
+CONTEXT_MEMORY_FILE = "context_memory.json"   # For project plans & contextual memory
+DEBUG_MEMORY_FILE = "ai_memory.json"           # For debugger performance memory
 HISTORY_DIR = "ai_versions"
-os.makedirs(HISTORY_DIR, exist_ok=True)
+PROJECTS_DIR = "projects"
 
-# Example LLM query integrations (using Ollama locally)
+os.makedirs(HISTORY_DIR, exist_ok=True)
+os.makedirs(PROJECTS_DIR, exist_ok=True)
+
+# Example AI query integrations (using Ollama locally)
 OLLAMA_MODELS = {
     "debugging": "mistral",
-    "optimization": "deepseek-coder",
+    "expansion": "deepseek-coder",
 }
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
@@ -29,19 +32,28 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(me
 # 1️⃣ MemoryManager (Contextual Memory)
 # ------------------------------
 class MemoryManager:
-    """Stores long-term project plans, unfinished & completed steps."""
+    """
+    Stores long-term project context.
+    Memory structure:
+      {
+         "project_name": <str>,
+         "plan": [<str>, ...],
+         "unfinished_steps": [<str>, ...],
+         "completed_steps": [<str>, ...]
+      }
+    """
     def __init__(self):
         self.memory = self.load_memory()
 
     def load_memory(self):
         if not os.path.exists(CONTEXT_MEMORY_FILE):
-            return {"project_plan": None, "unfinished_steps": [], "completed_steps": []}
+            return {"project_name": None, "plan": [], "unfinished_steps": [], "completed_steps": []}
         try:
             with open(CONTEXT_MEMORY_FILE, "r", encoding="utf-8") as f:
                 return json.load(f)
         except (json.JSONDecodeError, ValueError):
             logging.warning("Context memory file corrupted. Resetting memory...")
-            return {"project_plan": None, "unfinished_steps": [], "completed_steps": []}
+            return {"project_name": None, "plan": [], "unfinished_steps": [], "completed_steps": []}
 
     def save_memory(self):
         try:
@@ -50,9 +62,10 @@ class MemoryManager:
         except Exception as e:
             logging.error(f"Failed to save context memory: {e}")
 
-    def set_plan(self, plan):
-        self.memory["project_plan"] = plan
-        self.memory["unfinished_steps"] = plan.copy()
+    def set_project(self, project_name, steps):
+        self.memory["project_name"] = project_name
+        self.memory["plan"] = steps.copy()
+        self.memory["unfinished_steps"] = steps.copy()
         self.memory["completed_steps"] = []
         self.save_memory()
 
@@ -71,36 +84,38 @@ class MemoryManager:
 # 2️⃣ ProjectPlanner (Plan Generator)
 # ------------------------------
 class ProjectPlanner:
-    """Generates a structured step-by-step roadmap for a new project."""
-    def __init__(self, project_name):
+    """
+    Generates a structured execution plan based on the project goal.
+    For example, if the goal is "a Flask API", steps may include implementing routes, etc.
+    """
+    def __init__(self, project_name, goal="basic"):
         self.project_name = project_name
+        self.goal = goal
 
     def generate_plan(self):
-        plan = [
+        steps = [
             f"Create project directory for {self.project_name}",
-            f"Generate main.py with initial structure",
-            f"Create README.md",
-            f"Set up virtual environment",
-            f"Install dependencies",
-            f"Write unit tests",
-            f"Implement core functionality",
-            f"Debug and optimize code",
-            f"Run final validation tests",
-            f"Deploy the project",
+            "Initialize virtual environment",
+            "Generate main.py with initial project structure",
+            "Create README.md",
+            "Install necessary dependencies",
+            "Write unit tests for core functionality",
+            f"Implement {self.goal} logic in modules",
+            "Debug and optimize code",
+            "Run final validation tests",
+            "Deploy the project",
+            "Expand project functionality",  # Additional expansion step
         ]
-        return plan
+        return steps
 
 # ------------------------------
-# 3️⃣ SelfImprovingDebugger (Debug/Test & Auto-Improve)
+# 3️⃣ SelfImprovingDebugger (Debugging & Expansion)
 # ------------------------------
 class SelfImprovingDebugger:
     """
-    Handles code improvement:
-      - Backs up current script.
-      - Attempts to run the script.
-      - On error, queries an LLM (via Ollama) for fixes/optimizations.
-      - Tests the improved code and reloads if valid.
-      - Optionally auto-deploys via Git.
+    Attempts to run the given script.
+    On error, queries an external LLM (via Ollama) to fix/optimize the code.
+    Also can use the "expansion" model to add functionality.
     """
     def __init__(self, script_path):
         self.script_path = script_path
@@ -134,6 +149,48 @@ class SelfImprovingDebugger:
         except Exception as e:
             logging.error(f"Failed to backup script: {e}")
 
+    def expand_code(self):
+        """Uses AI to expand functionality based on the project goal."""
+        logging.info("🚀 Expanding code with AI-generated improvements...")
+        current_code = self._read_current_code()
+        if current_code is None:
+            return False
+        expanded_code = self.query_ollama(
+            OLLAMA_MODELS["expansion"],
+            f"Expand this Python project by adding meaningful functionality and additional modules:\n\n{current_code}"
+        )
+        if expanded_code:
+            self._write_new_code(expanded_code)
+            return True
+        return False
+
+    def _read_current_code(self):
+        try:
+            with open(self.script_path, "r", encoding="utf-8") as f:
+                return f.read()
+        except Exception as e:
+            logging.error(f"Failed to read script: {e}")
+            return None
+
+    def _write_new_code(self, new_code):
+        try:
+            with open(self.script_path, "w", encoding="utf-8") as f:
+                f.write(new_code)
+            logging.info("✅ Code successfully expanded!")
+        except Exception as e:
+            logging.error(f"Failed to write improved code: {e}")
+
+    def query_ollama(self, model, prompt):
+        try:
+            response = subprocess.run(
+                ["ollama", "run", model, prompt],
+                capture_output=True, text=True, check=True
+            )
+            return response.stdout.strip()
+        except subprocess.CalledProcessError as e:
+            logging.error(f"Ollama query failed for {model}: {e}")
+            return ""
+
     def run_script(self):
         start_time = time.time()
         try:
@@ -141,10 +198,9 @@ class SelfImprovingDebugger:
                 exec(f.read(), {})
             exec_time = time.time() - start_time
             logging.info(f"Script ran successfully in {exec_time:.4f} sec.")
-
             self.memory["past_performance"].append(exec_time)
             self.save_debug_memory()
-
+            # Optionally auto-deploy if fast enough
             if exec_time < 1.0:
                 self.auto_deploy()
             return exec_time
@@ -157,7 +213,6 @@ class SelfImprovingDebugger:
         current_code = self._read_current_code()
         if current_code is None:
             return self.baseline
-
         fixed_code = self.query_ollama(
             OLLAMA_MODELS["debugging"],
             f"""Fix the following script based on the error log:
@@ -170,7 +225,6 @@ Return ONLY the corrected script."""
         if not fixed_code:
             logging.error("Debugging model returned no output.")
             return self.baseline
-
         improved_code = self.query_ollama(
             OLLAMA_MODELS["optimization"],
             f"""Optimize the following fixed script for clarity and efficiency:
@@ -181,7 +235,6 @@ Return ONLY the optimized script."""
         if not improved_code:
             logging.error("Optimization model returned no output.")
             return self.baseline
-
         tester = TestDebugger()
         if tester.test_new_code(improved_code):
             try:
@@ -208,25 +261,6 @@ Return ONLY the optimized script."""
         except Exception as e:
             logging.error(f"Failed to reload script: {e}")
 
-    def _read_current_code(self):
-        try:
-            with open(self.script_path, "r", encoding="utf-8") as f:
-                return f.read()
-        except Exception as e:
-            logging.error(f"Failed to read script: {e}")
-            return None
-
-    def query_ollama(self, model, prompt):
-        try:
-            response = subprocess.run(
-                ["ollama", "run", model, prompt],
-                capture_output=True, text=True, check=True
-            )
-            return response.stdout.strip()
-        except subprocess.CalledProcessError as e:
-            logging.error(f"Ollama query failed for {model}: {e}")
-            return ""
-
     def auto_deploy(self):
         logging.info("Auto-deploying script to GitHub...")
         from git import Repo, InvalidGitRepositoryError
@@ -250,7 +284,7 @@ class TestDebugger:
     """Executes tests to validate functionality."""
     def run_tests(self):
         logging.info("Running automated tests...")
-        # Placeholder: In a real implementation, integrate with pytest or similar.
+        # Placeholder: integrate with pytest or similar in a real project.
         return True
 
     def test_new_code(self, candidate_code: str) -> bool:
@@ -272,13 +306,13 @@ class TestDebugger:
                 os.remove(test_path)
 
 # ------------------------------
-# 5️⃣ ProjectExecutor (Plan Follower)
+# 5️⃣ ProjectExecutor (Plan Follower & Expander)
 # ------------------------------
 class ProjectExecutor:
     """
     Executes the project plan step by step:
-      - Retrieves next step via MemoryManager.
-      - Calls appropriate actions (create directory, generate files, run tests, debug code).
+      - Retrieves the next step from MemoryManager.
+      - Calls appropriate actions (e.g., create directory, generate files, run tests, expand code).
     """
     def __init__(self, memory_manager, debugger, test_runner):
         self.memory = memory_manager
@@ -308,15 +342,16 @@ class ProjectExecutor:
         elif "Write unit tests" in step:
             return self.test_runner.run_tests()
         elif "Debug and optimize code" in step:
-            # Here we expect the debugger to run quickly if code is good.
-            return self.debugger.run_script() < 5.0
+            return self.debugger.run_script() < 5.0  # Expect quick execution if code is good.
+        elif "Expand project functionality" in step:
+            return self.debugger.expand_code()
         else:
             logging.info(f"Simulated execution of: {step}")
             return True
 
     def create_project_directory(self):
-        project_name = self.memory.memory["project_plan"][0] if self.memory.memory["project_plan"] else "default_project"
-        path = os.path.join("projects", project_name)
+        project_name = self.memory.memory["project_name"] if self.memory.memory["project_name"] else "default_project"
+        path = os.path.join(PROJECTS_DIR, project_name)
         if not os.path.exists(path):
             os.makedirs(path)
             logging.info(f"Created project directory: {path}")
@@ -325,8 +360,8 @@ class ProjectExecutor:
         return False
 
     def generate_main_script(self):
-        project_name = self.memory.memory["project_plan"][0] if self.memory.memory["project_plan"] else "default_project"
-        path = os.path.join("projects", project_name, "main.py")
+        project_name = self.memory.memory["project_name"] if self.memory.memory["project_name"] else "default_project"
+        path = os.path.join(PROJECTS_DIR, project_name, "main.py")
         if not os.path.exists(path):
             with open(path, "w", encoding="utf-8") as f:
                 f.write("# Auto-generated main.py\nprint('Hello World')\n")
@@ -336,8 +371,8 @@ class ProjectExecutor:
         return False
 
     def create_readme(self):
-        project_name = self.memory.memory["project_plan"][0] if self.memory.memory["project_plan"] else "default_project"
-        path = os.path.join("projects", project_name, "README.md")
+        project_name = self.memory.memory["project_name"] if self.memory.memory["project_name"] else "default_project"
+        path = os.path.join(PROJECTS_DIR, project_name, "README.md")
         if not os.path.exists(path):
             with open(path, "w", encoding="utf-8") as f:
                 f.write(f"# {project_name}\n\nThis is an auto-generated project.")
@@ -347,12 +382,11 @@ class ProjectExecutor:
         return False
 
 # ------------------------------
-# (Optional) 6️⃣ ProjectMaker (Standalone Scaffold Creator)
+# (Optional) ProjectMaker (Standalone Scaffold Creator)
 # ------------------------------
 class ProjectMaker:
     """
-    Illustrates scaffolding a new project independently.
-    Can be invoked separately from plan execution.
+    Illustrates how to scaffold a new project independently.
     """
     def __init__(self, base_dir="new_projects"):
         self.base_dir = base_dir
@@ -378,31 +412,36 @@ class ProjectMaker:
 # Main Execution Flow
 # ------------------------------
 if __name__ == "__main__":
-    # 1️⃣ Initialize contextual memory for project planning.
+    # Initialize contextual memory for project planning.
     context_memory = MemoryManager()
-    if not context_memory.memory["project_plan"]:
+    if not context_memory.memory["project_name"]:
         logging.info("No active project plan found. Generating a new plan...")
         project_name = f"project_{int(time.time())}"
-        planner = ProjectPlanner(project_name)
+        goal = "a Flask API"  # Example project goal
+        planner = ProjectPlanner(project_name, goal)
         plan = planner.generate_plan()
-        context_memory.set_plan(plan)
+        context_memory.set_project(project_name, plan)
         logging.info(f"📜 New project plan: {plan}")
 
-    # 2️⃣ Instantiate core components.
-    project_name = context_memory.memory["project_plan"][0] if context_memory.memory["project_plan"] else "default_project"
-    project_dir = os.path.join("projects", project_name)
+    # Ensure project directory exists.
+    project_name = context_memory.memory["project_name"] if context_memory.memory["project_name"] else "default_project"
+    project_dir = os.path.join(PROJECTS_DIR, project_name)
     os.makedirs(project_dir, exist_ok=True)
+    
+    # Ensure main.py exists; if not, create a placeholder.
     script_path = os.path.join(project_dir, "main.py")
     if not os.path.exists(script_path):
         with open(script_path, "w", encoding="utf-8") as f:
             f.write("# Auto-generated placeholder\nprint('Hello World')\n")
+    
+    # Instantiate core components.
     debugger = SelfImprovingDebugger(script_path)
     tester = TestDebugger()
     executor = ProjectExecutor(context_memory, debugger, tester)
 
-    # 3️⃣ Execute the project plan step by step.
+    # Execute the project plan step by step.
     while context_memory.get_next_step():
         executor.execute_next_step()
-        time.sleep(2)  # Wait between steps
+        time.sleep(2)  # Pause between steps
 
     logging.info("✅ Project fully completed!")

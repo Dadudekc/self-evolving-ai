@@ -25,6 +25,7 @@
         "Find profitable business opportunities",
         "Find profitable business opportunities",
         "Find profitable business opportunities",
+        "Find profitable business opportunities",
         "Find profitable business opportunities"
     ],
     "past_performance": [
@@ -53,11 +54,12 @@
         0.003992319107055664,
         0.003942251205444336,
         0.003993988037109375,
-        0.032567501068115234
+        0.032567501068115234,
+        0.003970146179199219
     ],
-    "revenue": 474.6221343874651,
-    "engagement": 72.23634006143455,
-    "efficiency": 32.71905432775539,
+    "revenue": 353.26457834784156,
+    "engagement": 51.88849183638607,
+    "efficiency": 19.671494942084834,
     "training_data": [
         {
             "features": [
@@ -238,6 +240,15 @@
                 0
             ],
             "target": 579.5775287766551
+        },
+        {
+            "features": [
+                353.26457834784156,
+                51.88849183638607,
+                19.671494942084834,
+                0
+            ],
+            "target": 424.8245651263125
         }
     ]
 }
